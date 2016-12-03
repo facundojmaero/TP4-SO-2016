@@ -1,115 +1,88 @@
-# include <sys/types.h>
-# include <unistd.h>
-# include <string.h>
-# include <stdio.h>
-# define align4(x) ((((( x) -1) >>2) <<2)+4)
-# define BLOCK_SIZE 20
+/**
+ * @file   main.c
+ * @author Facundo Maero, Gustavo Gonzalez
+ * @date   Diciembre 2016
+ * @version 0.1
+ * @brief Programa de prueba que utiliza funciones propias imitando la funcionalidad del malloc y free en C
+ *
+*/
 
-# define TAMANO sizeof ( struct s_block )
+#include "libreria.h"
 
-typedef struct s_block * t_block ;
-struct s_block {
-	size_t size;
-	struct s_block *next;
-	struct s_block *prev;
-	int free;
-	void *ptr;
-	char data[1];
-};
-
-//Prototipos de funciones
-void * realloc (void *p, size_t size);
-void free(void *p);
-t_block get_block (void *p);
-int valid_addr (void *p);
-void split_block ( t_block b, size_t s);
-t_block extend_heap ( t_block last , size_t s);
-t_block find_block ( t_block *last , size_t size );
-void * malloc ( size_t size );
-void * calloc ( size_t number , size_t size );
-t_block fusion (t_block b);
-void copy_block ( t_block src , t_block dst);
-
-void *base = NULL;
-
+  /**
+  * @brief Funcion principal que realiza varios malloc y free para demostrar el funcionamiento del codigo
+  *
+  */
 int main(){
+	printf("Implementacion de malloc y free en C\n\n");
+
 	char *str;
 
-   /* Initial memory allocation */
-   str = (char *) malloc(15);
-   strcpy(str, "tutorialspoint");
-   printf("String = %s\n", str);
+	str = (char *) myMalloc(15);
+	strcpy(str, "tutorialspoint");
+	printf("String str = %s\n", str);
+	printf("%p -> direccion de str\n",myGetBlock(str));
 
-   free(str);
-   printf("FLAAAAG\n");
+	myFree(str);
+	printf("Libero str\n\n");
+
+	char *a;
+	a = (char *) myMalloc(10);
+	printf("malloc de a (10)\n");
+	printf("%p -> direccion de a\n\n",myGetBlock(a));
+
+	char *b,*c,*d;
+
+	b = (char*) myMalloc(15);
+	c = (char*) myMalloc(20);
+	d = (char*) myMalloc(5);
+	printf("malloc de b (15), c (20) y d (5)\n");
+	printf("%p -> direccion de b\n",myGetBlock(b));
+	printf("%p -> direccion de c\n",myGetBlock(c));
+	printf("%p -> direccion de d\n",myGetBlock(d));
+
+	myFree(b);
+	myFree(c);
+	printf("\nlibero b y c\n\n");
+
+	char *e;
+	e = (char*) myMalloc(30);
+	printf("malloc de e (30)\n");
+	printf("%p -> direccion de e\n",myGetBlock(e));
+
+	myFree(d);
+	printf("\nlibero d\n\n");
+
+	char *f;
+	f = (char*) myMalloc(10);
+	printf("malloc de f (10)\n");
+	printf("%p -> direccion de f\n",myGetBlock(f));
+
 	return 0;
 }
 
-void * realloc (void *p, size_t size){
-	size_t s;
-	t_block b, newBlock;
-	void *newp;
-	if (!p){
-		return ( malloc (size));
-	}
-	if ( valid_addr (p))
-	{
-		s = align4 (size);
-		b = get_block (p);
-		if (b->size >= s)
-		{
-			if (b->size - s >= ( BLOCK_SIZE + 4))
-				split_block (b,s);
-		}
-		else
-		{
-			/* Try fusion with next if possible */
-			if (b->next && b->next ->free && (b->size + BLOCK_SIZE + b->next ->size) >= s)
-			{
-				fusion (b);
-				if (b->size - s >= ( BLOCK_SIZE + 4))
-					split_block (b,s);
-			}
-			else
-			{
-				/* good old realloc with a new block */
-				newp = malloc (s);
-				if (! newp)
-					/* we ’re doomed ! */
-					return (NULL );
-				/* I assume this work ! */
-				newBlock = get_block (newp );
-				/* Copy data */
-				copy_block (b,newBlock );
-				/* free the old one */
-				free(p);
-				return (newp );
-			}
-		}
-		return (p);
-	}
-	return (NULL );
-}
-
-void free(void *p){
+  /**
+  * @brief Libera un bloque de memoria
+  * @param p Puntero a la region de datos del bloque a liberar 
+  */
+void myFree(void *p){
 	t_block b;
-	if ( valid_addr (p))
+	if ( myValidAddr (p))
 	{
-
-		b = get_block (p);
+		b = myGetBlock (p);
 		b->free = 1;
 
-		/* fusion with previous if possible */
+		/* myFusion with previous if possible */
 		if(b->prev && b->prev->free){	
-			b = fusion (b->prev );
+			b = myFusion (b->prev );
 		}
-		/* then fusion with next */
+		/* then myFusion with next */
 		if (b->next){
-			fusion (b);
+			myFusion (b);
 		}
 		else
 		{
-			/* free the end of the heap */
+			/* myFree the end of the heap */
 			if (b->prev)
 				b->prev ->next = NULL;
 			else
@@ -120,28 +93,40 @@ void free(void *p){
 	}
 }
 
-/* Get the block from and addr*/
-t_block get_block (void *p){
+  /**
+  * @brief A partir de la direccion a la region de datos de un bloque, obtiene la direccion del bloque de control.
+  * @param p Puntero a la region de datos del bloque de interes
+  * @return la direccion de la estructura de control del bloque
+  */
+t_block myGetBlock (void *p){
 	char *tmp;
 	tmp = (char*)p;
-	return (t_block) (p = tmp -= BLOCK_SIZE );
+	tmp = tmp - BLOCK_SIZE;
+	return (t_block) tmp;
 }
 
-/* Valid addr for free*/
-int valid_addr (void *p){
+  /**
+  * @brief Valida si el puntero es el resultado de un malloc previo
+  * @param p Puntero a la region de datos del bloque de interes
+  * @return 1 si es una direccion valida, o 0 si no lo es
+  */
+int myValidAddr (void *p){
 	if (base)
 	{
-		if(p == (get_block (p))->ptr)
-			printf("si\n");
 		if ( p>base && p< sbrk (0))
 		{
-			return (p == (get_block (p))->ptr);
+			return (p == (myGetBlock (p))->ptr);
 		}
 	}
 	return (0);
 }
 
-void split_block ( t_block b, size_t s){
+  /**
+  * @brief Divide el bloque en dos
+  * @param p Puntero a la region de datos del bloque de interes
+  * @param s Tamano de uno de los bloques que se quiere obtener
+  */
+void mySplitBlock ( t_block b, size_t s){
 	t_block newBlock;
 	newBlock = (t_block) (b->data + s);
 	newBlock ->size = b->size - s - BLOCK_SIZE ;
@@ -155,7 +140,13 @@ void split_block ( t_block b, size_t s){
 		newBlock->next->prev = newBlock;
 }
 
-t_block extend_heap ( t_block last , size_t s){
+  /**
+  * @brief Agranda la region de memoria del proceso desplazando la heap
+  * @param p Puntero a la region de datos del ultimo bloque
+  * @param s Tamano que se quiere expandir la heap
+  * @return la direccion del ultimo bloque en la heap luego de expandirla
+  */
+t_block myExtendHeap ( t_block last , size_t s){
 	t_block b;
 	b = (t_block) sbrk (0);
 	if(sbrk(BLOCK_SIZE + s) < 0)
@@ -170,7 +161,13 @@ t_block extend_heap ( t_block last , size_t s){
 	return (b);
 }
 
-t_block find_block ( t_block *last , size_t size ){
+  /**
+  * @brief Busca un bloque para reservar memoria, a partir del tamano buscado y el puntero al ultimo bloque encontrado, con el algoritmo de First Fit
+  * @param last Puntero a la region de datos del ultimo bloque encontrado
+  * @param size Tamano del bloque que se quiere buscar
+  * @return la direccion del bloque encontrado
+  */
+t_block myFindBlock ( t_block *last , size_t size ){
 	t_block b = (t_block) base;
 	while (b && !(b->free && b->size >= size )) {
 		*last = b;
@@ -179,48 +176,46 @@ t_block find_block ( t_block *last , size_t size ){
 	return (b);
 }
 
-void * malloc ( size_t size ){
+  /**
+  * @brief Funcion principal que reserva bloques de memoria
+  * @param size Tamano del bloque a reservar
+  */
+void * myMalloc ( size_t size ){
 	t_block b,last;
 	size_t s;
-	s = align4 (size );
+	s = align4 (size);
 	if (base) {
 		/* First find a block */
 		last = (t_block) base;
-		b = find_block (& last ,s);
+		b = myFindBlock (&last ,s);
 		if (b) {
-			/* can we split */
+			/* split the block */
 			if ((b->size - s) >= ( BLOCK_SIZE + 4))
-			split_block (b,s);
+			mySplitBlock (b,s);
 			b->free =0;
 		} else {
 			/* No fitting block , extend the heap */
-			b = extend_heap (last ,s);
+			b = myExtendHeap (last ,s);
 			if (!b)
 			return (NULL );
 		}
 	} else {
 		/* first time */
-		b = extend_heap (NULL ,s);
+		b = myExtendHeap (NULL ,s);
 		if (!b)
-		return (NULL );
+			return (NULL);
 		base = b;
+		b->ptr = &b->data;
 	}
 	return (b->data );
 }
 
-void * calloc ( size_t number , size_t size ){
-	size_t *newBlock;
-	size_t s4 ,i;
-	newBlock = (size_t*) malloc ( number * size );
-	if (newBlock) {
-		s4 = align4 ( number * size) << 2;
-		for (i=0; i<s4 ; i++)
-			newBlock[i] = 0;
-	}
-	return (newBlock);
-}
-
-t_block fusion ( t_block b){
+  /**
+  * @brief Intenta fusionar bloques de memoria vacios para formar uno mas grande
+  * @param b Puntero a la region de datos del bloque de interes
+  * @return la direccion del bloque fusionado
+  */
+t_block myFusion ( t_block b){
 	if (b->next && b->next ->free ){
 		b->size += BLOCK_SIZE + b->next ->size;
 		b->next = b->next ->next;
@@ -228,14 +223,4 @@ t_block fusion ( t_block b){
 		b->next ->prev = b;
 	}
 	return (b);
-}
-
-/* Copy data from block to block*/
-void copy_block ( t_block src , t_block dst){
-	int *sdata ,* ddata ;
-	size_t i;
-	sdata = (int*) src ->ptr;
-	ddata = (int*) dst ->ptr;
-	for (i=0; i*4<src ->size && i*4<dst ->size; i++)
-		ddata [i] = sdata [i];
 }
