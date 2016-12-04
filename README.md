@@ -33,6 +33,8 @@ Este práctico consiste en la implementación de las funciones de reserva y libe
 
 - En consola observará la dirección de los bloques de control de diferentes variables, a medida que se solicita más memoria, las direcciones crecen. Pero luego de liberar variables y asignar otras nuevas, puede verse que los bloques libres intermedios se combinan para poder alojar variables de mayor tamaño.
 
+- Para utilizar las funciones en otro proyecto, adjunte las funciones y el archivo con headers y utilice las funciones myMalloc y myFree en lugar de malloc() y free().
+
 - Al compilar y linkear, se genera un archivo donde se guardan los posibles errores y advertencias que encuentre el programa CppCheck al realizar el análisis estático del código. Este archivo se encuentra en:
 ```
 work/code/err.txt
